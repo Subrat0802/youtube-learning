@@ -30,7 +30,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
 .env*
 
 # vercel
@@ -40,13 +40,18 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Anchor
+# ---------------------------
+# Anchor (⚠️ keep your program code)
+# ---------------------------
+
+# Ignore build artifacts + ledger + deploy data
+/anchor/target
 /anchor/.anchor
-/anchor/target/debug
-/anchor/target/deploy
-/anchor/target/release
-/anchor/target/sbf-solana-solana
-/anchor/target/test-ledger
-/anchor/target/.rustc_info.json
 test-ledger
+.solana/
+
+# Keep IDL if frontend needs it:
+/anchor/target/idl/*.json
+
+# Backup files
 **/*.rs.bk

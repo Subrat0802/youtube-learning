@@ -8,7 +8,7 @@ import { Voting } from "../target/types/voting";
 const IDL = require("../target/idl/voting.json");
 
 const votingAddress = new PublicKey(
-  "Count3AcZucFDPSFBAeHkQ6AvttieKUkyJ8HiQGhQwe"
+  "EjMd5qSmzfhk11LRQfLo3WkKCxt6Cbg2cp1no6f9yNCJ"
 );
 
 describe("bankrun", () => {

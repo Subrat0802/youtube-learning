@@ -1,0 +1,10 @@
+# Rust / Anchor build output
+target/
+Cargo.lock
+
+# Solana local validator
+test-ledger/
+.cache/
+
+# Node
+node_modules/

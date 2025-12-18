@@ -1,1 +1,0 @@
-/Users/subratmishra/Desktop/solana/youtube-learning/voting-dapp-againn/voting/anchor/target/sbpf-solana-solana/release/voting.so: /Users/subratmishra/Desktop/solana/youtube-learning/voting-dapp-againn/voting/anchor/programs/voting/src/lib.rs

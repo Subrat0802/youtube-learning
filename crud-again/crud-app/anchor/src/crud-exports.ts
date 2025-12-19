@@ -12,19 +12,29 @@ export const CRUD_PROGRAM_ID = new PublicKey(CrudIDL.address)
 
 // This is a helper function to get the Crud Anchor program.
 export function getCrudProgram(provider: AnchorProvider, address?: PublicKey): Program<Crud> {
-  return new Program({ ...CrudIDL, address: address ? address.toBase58() : CrudIDL.address } as Crud, provider)
+  // Always use the IDL's declared address to avoid DeclaredProgramIdMismatch errors
+  // Anchor validates the IDL's address field against the deployed program
+  // If you need a different address, it should be set in the IDL itself via declare_id!
+  return new Program(CrudIDL as Crud, provider)
 }
 
 // This is a helper function to get the program ID for the Crud program depending on the cluster.
-export function getCrudProgramId(cluster: Cluster) {
+export function getCrudProgramId(cluster: Cluster | 'localnet') {
+  // For localnet/devnet/testnet, use the program ID from Anchor.toml
+  // This should match the program ID declared in the Rust code (declare_id!)
+  const programId = '9ACUuVC25tVMqy7wn6h67uB7euMhqKKFnkZHew9rDCwg'
+  
   switch (cluster) {
     case 'devnet':
     case 'testnet':
-      // This is the program ID for the Crud program on devnet and testnet.
-      return new PublicKey('9ACUuVC25tVMqy7wn6h67uB7euMhqKKFnkZHew9rDCwg')
+    case 'localnet':
+      return new PublicKey(programId)
     case 'mainnet-beta':
+      return CRUD_PROGRAM_ID
     default:
+      // Default to the program ID from IDL (which should match declare_id!)
       return CRUD_PROGRAM_ID
   }
 }
+
 

@@ -14,9 +14,17 @@ export function CounterCreate() {
 
   const isFromValid = title.trim() != '' && message.trim() != '';
 
-  const handleSubmit = () => {
-    if (!publicKey && isFromValid){
-      createEntry.mutateAsync({title, message, owner: publicKey});
+  const handleSubmit = async () => {
+    if (publicKey && isFromValid){
+      try {
+        await createEntry.mutateAsync({title, message, owner: publicKey});
+        // Clear form after successful creation
+        setTitle('');
+        setMessage('');
+      } catch (error) {
+        // Error is already handled in the mutation
+        console.error('Error creating entry:', error);
+      }
      }
   }
 
@@ -41,15 +49,10 @@ export function CounterCreate() {
       />
       <button
         onClick={handleSubmit}
-        disabled={!createEntry.isPending || !isFromValid}
+        disabled={createEntry.isPending || !isFromValid}
         className='btn btn-xs btn-primary lg:btn-md'
       >
-
-        <div>
-
-        </div>
-
-
+        Create Entry
       </button>
     </div>
   )
@@ -101,7 +104,7 @@ function CounterCard({ account }: { account: PublicKey }) {
   const isFromValid = message.trim() != '';
 
   const handleSubmit = () => {
-    if (!publicKey && isFromValid && title){
+    if (publicKey && isFromValid && title){
       updateEntry.mutateAsync({title, message, owner: publicKey});
      }
   }
@@ -138,14 +141,14 @@ function CounterCard({ account }: { account: PublicKey }) {
             onClick={() => {
               const title = accountQuery.data?.title;
 
-              if(title){
-                return deleteEntry.mutateAsync(title)
+              if(title && publicKey){
+                return deleteEntry.mutateAsync({title, owner: publicKey})
               }
 
             }}
             disabled={deleteEntry.isPending}
             className='btn btn-xs lg:btn-md btn-primary'
-          >delete </button>
+          >Delete</button>
         </div>
       </div>
     </div>

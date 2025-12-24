@@ -8,9 +8,6 @@ edition = "2021"
 crate-type = ["cdylib", "lib"]
 name = "voting"
 
-[lints.rust]
-unexpected_cfgs = "allow"
-
 
 [features]
 default = []

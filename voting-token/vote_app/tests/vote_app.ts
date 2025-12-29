@@ -3,7 +3,7 @@ import { Program } from "@coral-xyz/anchor";
 import { VoteApp } from "../target/types/vote_app";
 import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet";
 import { expect } from "chai";
-import { getOrCreateAssociatedTokenAccount } from "@solana/spl-token";
+import { getAccount, getOrCreateAssociatedTokenAccount } from "@solana/spl-token";
 import { publicKey } from "@coral-xyz/anchor/dist/cjs/utils";
 
 
@@ -11,7 +11,8 @@ const SEEDS = {
   TREASURY_CONFIG: "treasury_config",
   X_MINT: "x_mint",
   MINT_AUTHORITY: "mint_authority",
-  SOL_VAULT: "sol_vault"
+  SOL_VAULT: "sol_vault",
+  VOTER_SEED: "voter"
 } as const;
 
 const findPda = (programId: anchor.web3.PublicKey, seeds: (Buffer | Uint8Array)[]):anchor.web3.PublicKey => {
@@ -37,6 +38,7 @@ describe("vote_app", () => {
 
   const adminWallet = (provider.wallet as NodeWallet).payer;
   let proposalCreatorWallet = new anchor.web3.Keypair();
+  let voterWallet = new anchor.web3.Keypair();
   let proposalCreatorTokenAccount: anchor.web3.PublicKey;
 
   let treasuryConfigPda:anchor.web3.PublicKey;
@@ -44,6 +46,7 @@ describe("vote_app", () => {
   let solVaultPda:anchor.web3.PublicKey;
   let mintAuthorityPda:anchor.web3.PublicKey;
   let treasuryTokenAccount:anchor.web3.PublicKey;
+  let voterPda: anchor.web3.PublicKey;
 
 
   beforeEach(async () => {
@@ -51,7 +54,9 @@ describe("vote_app", () => {
     solVaultPda = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.SOL_VAULT)]);
     mintAuthorityPda = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.MINT_AUTHORITY)]);
     xMintPda = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.X_MINT)]);
+    voterPda = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.VOTER_SEED), voterWallet.publicKey.toBuffer()])
     await airDropSol(connection, proposalCreatorWallet.publicKey, 10 * anchor.web3.LAMPORTS_PER_SOL);
+    await airDropSol(connection, voterWallet.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL);
   })
 
   const createTokenAccounts = async () => {
@@ -70,6 +75,7 @@ describe("vote_app", () => {
         xMintPda,
         proposalCreatorWallet.publicKey
       )).address
+      
     }
 
     describe("1. initiaze traesury", () => {
@@ -95,7 +101,9 @@ describe("vote_app", () => {
  
 
     describe("2. buy tokens", () => {
-        it("buy tokens!", async () => {
+        it("2.1 buy tokens!", async () => {
+          const tokenBalanceBefore = (await getAccount(connection, proposalCreatorTokenAccount)).amount;
+
         await program.methods.buyTokens().accounts({
           buyer: proposalCreatorWallet.publicKey,
           // mintAuthority: mintAuthorityPda,
@@ -105,9 +113,27 @@ describe("vote_app", () => {
           // treasuryConfigAccount: treasuryConfigPda,
           buyerTokenAccount:proposalCreatorTokenAccount
         }).signers([proposalCreatorWallet]).rpc();
-      }) 
+
+        const tokenBalanceAfter = (await getAccount(connection, proposalCreatorTokenAccount)).amount;
+        console.log(tokenBalanceAfter);
+        expect(tokenBalanceAfter - tokenBalanceBefore).to.equal(BigInt(1000000000));
+      }
+    ) 
     })
 
-});
+    describe("3. voter", () => {
+      it("3.1 register voters", async () => {
+        await program.methods.registerVoter().accounts({
+          authority: voterWallet.publicKey
+        }).signers([voterWallet]).rpc();
+
+        const voterAccountData = await program.account.voter.fetch(voterPda);
+        expect(voterAccountData.voterId.toBase58()).to.equal(voterWallet.publicKey.toBase58());
+        console.log("voterAccount", voterAccountData.voterId.toBase58());
+        console.log("voter pda", voterPda.toBase58());
+        console.log("voterAccount", voterAccountData.proposalVoted);
+      })
+    })
+}); 
 
 

@@ -56,7 +56,8 @@ pub struct BuyTokens<'info> {
     //from here get the bump for sol_vault
     #[account(
         seeds=[b"treasury_config"],
-        bump
+        bump,
+        constraint = treasury_config_account.x_mint == x_mint.key()
     )]
     pub treasury_config_account: Account<'info, TreasuryConfig>,
 
@@ -70,10 +71,7 @@ pub struct BuyTokens<'info> {
     pub treasury_token_account: Account<'info, TokenAccount>,
 
 
-    #[account(
-        seeds=[b"x_mint"],
-        bump
-    )]
+    #[account(mut)]
     pub x_mint: Account<'info, Mint>,
 
     #[account(

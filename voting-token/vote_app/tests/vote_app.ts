@@ -4,6 +4,7 @@ import { VoteApp } from "../target/types/vote_app";
 import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet";
 import { expect } from "chai";
 import { getOrCreateAssociatedTokenAccount } from "@solana/spl-token";
+import { publicKey } from "@coral-xyz/anchor/dist/cjs/utils";
 
 
 const SEEDS = {
@@ -19,8 +20,16 @@ const findPda = (programId: anchor.web3.PublicKey, seeds: (Buffer | Uint8Array)[
 }
 
 
+const airDropSol = async (connection: anchor.web3.Connection, publicKey: anchor.web3.PublicKey, sol: number) => {
+  console.log("transfering sol token");
+  const signature = await connection.requestAirdrop(publicKey, sol);
+  await connection.confirmTransaction(signature, "confirmed");
+  const balance = await connection.getBalance(publicKey);
+  console.log("transfer sol successfull")
+  console.log("BALANCE:", balance);
+}
 
-describe("1. initialization vote_app", () => {
+describe("vote_app", () => {
   const provider = anchor.AnchorProvider.env();
   const connection = provider.connection;
   anchor.setProvider(provider);
@@ -37,11 +46,12 @@ describe("1. initialization vote_app", () => {
   let treasuryTokenAccount:anchor.web3.PublicKey;
 
 
-  beforeEach(() => {
+  beforeEach(async () => {
     treasuryConfigPda = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.TREASURY_CONFIG)]);
     solVaultPda = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.SOL_VAULT)]);
     mintAuthorityPda = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.MINT_AUTHORITY)]);
     xMintPda = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.X_MINT)]);
+    await airDropSol(connection, proposalCreatorWallet.publicKey, 10 * anchor.web3.LAMPORTS_PER_SOL);
   })
 
   const createTokenAccounts = async () => {
@@ -62,39 +72,42 @@ describe("1. initialization vote_app", () => {
       )).address
     }
 
+    describe("1. initiaze traesury", () => {
+       it("initialise traesaury", async () => {
+        const solPrice = new anchor.BN(1000000000);
+        const tokenPerPurchase = new anchor.BN(1000000000)
 
+        console.log("Treasury config PDA", treasuryConfigPda);
 
-  it("initialise traesaury", async () => {
-    const solPrice = new anchor.BN(1000000000);
-    const tokenPerPurchase = new anchor.BN(1000000000)
+        const tx = await program.methods.initializeTreasury(solPrice, tokenPerPurchase).accounts({
+          authority: adminWallet.publicKey,
+        }).rpc();
 
-    console.log("Treasury config PDA", treasuryConfigPda);
+        const treasuryAccountData = await program.account.treasuryConfig.fetch(treasuryConfigPda);
+        expect(treasuryAccountData.authority.toBase58()).to.equal(adminWallet.publicKey.toBase58());
+        expect(treasuryAccountData.tokenPerPurchase.toNumber()).to.equal(tokenPerPurchase.toNumber());
+        expect(treasuryAccountData.solPrice.toNumber()).to.equal(solPrice.toNumber());
+        expect(treasuryAccountData.xMint.toBase58()).to.equal(xMintPda.toBase58());
+        await createTokenAccounts();
+      });
+    })
 
-    const tx = await program.methods.initializeTreasury(solPrice, tokenPerPurchase).accounts({
-      authority: adminWallet.publicKey,
-    }).rpc();
+ 
 
-    const treasuryAccountData = await program.account.treasuryConfig.fetch(treasuryConfigPda);
-    expect(treasuryAccountData.authority.toBase58()).to.equal(adminWallet.publicKey.toBase58());
-    expect(treasuryAccountData.tokenPerPurchase.toNumber()).to.equal(tokenPerPurchase.toNumber());
-    expect(treasuryAccountData.solPrice.toNumber()).to.equal(solPrice.toNumber());
-    expect(treasuryAccountData.xMint.toBase58()).to.equal(xMintPda.toBase58());
-    createTokenAccounts();
-  });
+    describe("2. buy tokens", () => {
+        it("buy tokens!", async () => {
+        await program.methods.buyTokens().accounts({
+          buyer: proposalCreatorWallet.publicKey,
+          // mintAuthority: mintAuthorityPda,
+          xMint: xMintPda,
+          treasuryTokenAccount: treasuryTokenAccount,
+          // solvault: solVaultPda,
+          // treasuryConfigAccount: treasuryConfigPda,
+          buyerTokenAccount:proposalCreatorTokenAccount
+        }).signers([proposalCreatorWallet]).rpc();
+      }) 
+    })
 
-
-  it("buy tokens!", async () => {
-    await program.methods.buyTokens().accounts({
-      buyer: proposalCreatorWallet.publicKey,
-      // mintAuthority: mintAuthorityPda,
-      // xMint: xMintPda,
-      treasuryTokenAccount: treasuryTokenAccount,
-      // solvault: solVaultPda,
-      // treasuryConfigAccount: treasuryConfigPda,
-
-      buyerTokenAccount:proposalCreatorTokenAccount
-    }).signers([proposalCreatorWallet]).rpc();
-  }) 
 });
 
 

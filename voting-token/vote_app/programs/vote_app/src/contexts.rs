@@ -111,3 +111,34 @@ pub struct RegisterVoter<'info> {
     pub system_program: Program<'info, System>
 }
 
+#[derive(Accounts)]
+pub struct RegisterProposal<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    //create treasury account first acocunt
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + Proposal::INIT_SPACE,
+        seeds=[b"proposal"],
+        bump
+    )]
+    pub proposal_account: Account<'info, Proposal>,
+
+    pub x_mint: Account<'info, Mint>,  
+
+    #[account(
+        mut, 
+        constraint = proposal_token_account.mint == x_mint.key(),
+        constraint = proposal_token_account.owner == authority.key()
+    )]
+    pub proposal_token_account: Account<'info, TokenAccount>,
+
+    #[account(mut, constraint = treasury_token_account.mint == x_mint.key())]
+    pub treasury_token_account: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+
+    pub system_program: Program<'info, System>
+}

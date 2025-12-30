@@ -12,7 +12,8 @@ const SEEDS = {
   X_MINT: "x_mint",
   MINT_AUTHORITY: "mint_authority",
   SOL_VAULT: "sol_vault",
-  VOTER_SEED: "voter"
+  VOTER_SEED: "voter",
+  VOTER: "voter"
 } as const;
 
 const findPda = (programId: anchor.web3.PublicKey, seeds: (Buffer | Uint8Array)[]):anchor.web3.PublicKey => {

@@ -1,9 +1,17 @@
 use anchor_lang::prelude::*;
 mod state;
 mod contexts;
-use contexts::*;
-use anchor_spl::token::{mint_to, MintTo};
-use anchor_lang::system_program;
+mod errors;
+use errors::*;
+// use contexts::*;
+// use anchor_spl::token::{
+//     mint_to,
+//     transfer as token_transfer,
+//     MintTo,
+//     Transfer as TokenTransfer,
+// };
+// use anchor_lang::system_program;
+
 declare_id!("51gaMYTFYY4jyCdrePV6Jp3Rv4D5Y9xvkGas8fNRAvSM");
 
 #[program]
@@ -62,6 +70,34 @@ pub mod vote_app {
     pub fn register_voter(ctx: Context<RegisterVoter>) -> Result<()> {
         let voter_account = &mut ctx.accounts.voter_account;
         voter_account.voter_id = ctx.accounts.authority.key();
+        Ok(())
+    }
+
+    pub fn register_proposal(ctx: Context<RegisterProposal>, proposal_info: String, deadline: i64, token_amount: u64) -> Result<()> {
+        let clock = Clock::get()?;
+        require!(deadline > clock.unix_timestamp, VoteError::InvalidDeadline);
+
+        let proposal_account = &mut ctx.accounts.proposal_account;
+
+        //transfer tokens from propsal token account to treasury account
+        let cpi_accounts = TokenTransfer {
+            from: ctx.accounts.proposal_token_account.to_account_info(),
+            to: ctx.accounts.treasury_token_account.to_account_info(),
+            authority: ctx.accounts.authority.to_account_info(),
+        };
+
+        let cpi_ctx = CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+        );
+
+        token_transfer(cpi_ctx, token_amount)?;
+
+        proposal_account.authoruty = ctx.accounts.authority.key();
+        // proposal_account.proposal_id = ;
+        // proposal_account.deadline = deadline;
+        // proposal_account.proposal_info = proposal_info;
+        // proposal_account.number_of_votes = 0;
         Ok(())
     }
 }

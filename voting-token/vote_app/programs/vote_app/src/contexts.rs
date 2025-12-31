@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use crate::state::*;
 // use crate::errors::*;
 use anchor_spl::{associated_token::{AssociatedToken}, token::{Mint, Token, TokenAccount}};
-
+use crate::errors::*;
 
 #[derive(Accounts)]
 pub struct InitializeTreasury<'info> {
@@ -260,4 +260,28 @@ pub struct CloseVoter<'info> {
 
     #[account(mut)]
     pub authority: Signer<'info>
+}
+
+#[derive(Accounts)]
+pub struct WithdrawSol<'info> {
+    #[account(
+        seeds = [b"treasury_config"],
+        bump,
+        constraint = treasury_config.authority == authority.key() @ VoteError::UnAuthorizedAccess
+    )]
+    pub treasury_config: Account<'info, TreasuryConfig>,
+
+    ///CHECK: this is a pda that holds SOL, validation by seeds
+    #[account(
+        mut,
+        seeds = [b"sol_vault"],
+        bump = treasury_config.bump
+    )]
+    pub sol_vault: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    pub system_program: Program<'info, System>
+
 }

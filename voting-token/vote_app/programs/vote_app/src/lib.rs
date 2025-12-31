@@ -7,7 +7,7 @@ use contexts::*;
 use anchor_spl::token::{mint_to, transfer as token_transfer, MintTo, Transfer as TokenTransfer,};
 use anchor_lang::system_program;
 mod events;
-use events::VoterAccountClosed;
+use events::*;
 
 declare_id!("51gaMYTFYY4jyCdrePV6Jp3Rv4D5Y9xvkGas8fNRAvSM");
 
@@ -97,13 +97,22 @@ pub mod vote_app {
 
         proposal_account.authority = ctx.accounts.authority.key();
         proposal_account.deadline = deadline;
-        proposal_account.proposal_info = proposal_info;
+        proposal_account.proposal_info = proposal_info.clone();
 
         let proposal_counte_account = &mut ctx.accounts.proposal_counter_account;
         proposal_account.proposal_id = proposal_counte_account.proposal_count;
         
         //increasing proposal count value
         proposal_counte_account.proposal_count = proposal_counte_account.proposal_count.checked_add(1).ok_or(VoteError::ProposalCounterOverflow)?;
+        
+        emit!(ProposalCreated {
+                proposal_id: proposal_account.proposal_id,
+                creator: proposal_account.authority,
+                proposal_info: proposal_account.proposal_info.clone(),
+                deadline: proposal_account.deadline,
+                timestamp: Clock::get()?.unix_timestamp
+            });
+        
         Ok(())
     }
 
@@ -180,6 +189,34 @@ pub mod vote_app {
                 rent_recovered_to: ctx.accounts.authority.key(),
                 timestamp: Clock::get()?.unix_timestamp
             });
+
+        Ok(())
+    }
+
+    pub fn withdraw_sol(ctx: Context<WithdrawSol>, amount: u64) -> Result<()> {
+        let treasury_config = &ctx.accounts.treasury_config;
+
+        //use PDA signin to transfer SOL from vault to authority
+        let sol_vault_seeds = &[b"sol_vault".as_ref(), &[treasury_config.bump]];
+        let signer_seed = &[&sol_vault_seeds[..]];
+
+        let transfer_ix = system_program::Transfer {
+            from: ctx.accounts.sol_vault.to_account_info(),
+            to: ctx.accounts.authority.to_account_info()
+        };
+
+        let _ = system_program::transfer(
+                    CpiContext::new_with_signer(ctx.accounts.system_program.to_account_info(), 
+                    transfer_ix, 
+                    signer_seed
+                ),
+            amount
+        );
+        emit!(SolWithdrawn {
+            authority: ctx.accounts.authority.key(),
+            amount,
+            timestamp: Clock::get()?.unix_timestamp 
+        });
 
         Ok(())
     }

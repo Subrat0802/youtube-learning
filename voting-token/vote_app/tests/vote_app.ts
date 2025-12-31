@@ -272,12 +272,58 @@ describe("vote_app", () => {
     })
 
 
-    describe("7. close proposal", () => {
+    describe("7. close proposal account", () => {
       it("7.1 should close proposal one after deadline and revocer rent!", async () => {
           await program.methods.closeProposal(PROPOSAL_ID).accounts({
             authority: proposalCreatorWallet.publicKey,
             destination: proposalCreatorWallet.publicKey
           }).signers([proposalCreatorWallet]).rpc();
+      })
+    })
+
+
+    describe("8. Close voter account", () => {
+      it("8.1 should close voter and revocer rent!", async () => {
+        const accountInfoBefore = await connection.getAccountInfo(voterPda);
+        expect(accountInfoBefore).to.not.be.null;
+
+        const voterBalancebefore = await connection.getBalance(voterWallet.publicKey);
+        console.log("Voter balance before", voterBalancebefore)
+
+          await program.methods.closeVoterAccount().accounts({
+            authority: voterWallet.publicKey
+          }).signers([voterWallet]).rpc();
+
+          const accountInfoAfter = await connection.getAccountInfo(voterPda);
+          expect(accountInfoAfter).to.be.null
+
+
+        const voterBalanceAfter = await connection.getBalance(voterWallet.publicKey);
+        console.log("Voter balance after", voterBalanceAfter)
+        if(voterBalancebefore<voterBalanceAfter){
+          console.log("Amount trnsfered successfully")
+        }
+      })
+    })
+
+
+    describe("9. Withdraw sol to treasury creator from sol_vault(treasury) account", () => {
+      it("9.1 withdraw owner to sol_vault!", async () => {
+        const withdrawAmount = new anchor.BN(100000000); //0.1 SOL
+        const adminBalanceBefore = await connection.getBalance(adminWallet.publicKey);
+        console.log("adminBalanceBefore", adminBalanceBefore);
+
+        //first check if there's enough SOL in vault
+        const vaultBalance = await connection.getBalance(solVaultPda);
+        if(vaultBalance >= withdrawAmount.toNumber()){
+          await program.methods.withdrawSol(withdrawAmount).accounts({
+            authority: adminWallet.publicKey
+          }).rpc();
+
+        const adminBalanceAfter = await connection.getBalance(adminWallet.publicKey)
+        console.log("adminBalanceAfter", adminBalanceAfter); //500000000092112830
+        console.log("AMount transfer", adminBalanceAfter - adminBalanceBefore)
+        }
       })
     })
 }); 

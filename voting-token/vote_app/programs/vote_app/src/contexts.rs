@@ -19,6 +19,7 @@ pub struct InitializeTreasury<'info> {
     )]
     pub treasury_config_account: Account<'info, TreasuryConfig>,
 
+    
     #[account(
         init,
         payer = authority,

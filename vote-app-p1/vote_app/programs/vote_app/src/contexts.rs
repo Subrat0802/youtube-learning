@@ -60,3 +60,62 @@ pub struct InitializeTreasury<'info> {
     pub system_program: Program<'info, System>
 }
 
+
+
+#[derive(Accounts)]
+pub struct BuyTokens<'info> {
+    #[account(
+        seeds = [b"treasury_config"],
+        bump,
+        constraint = treasury_config_account.x_mint == x_mint.key()
+    )]
+    pub treasury_config_account: Account<'info, TreasuryConfig>,
+
+    /// CHECK: This is to recieve SOL tokens
+    #[account(mut, seeds = [b"sol_vault"], bump=treasury_config_account.bump)]
+    pub sol_vault: AccountInfo<'info>,
+
+    //from here transfer token to users
+    #[account(mut)]
+    pub treasury_token_account: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub x_mint: Account<'info, Mint>,
+
+    #[account(
+        mut,
+        constraint = buyer_token_account.owner == buyer.key(),
+        constraint = buyer_token_account.mint == x_mint.key()
+    )]
+    pub buyer_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: This is going to be the mint authority of x_mint tokens
+    #[account(seeds=[b"mint_authority"], bump)]
+    pub mint_authority: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub buyer: Signer<'info>,
+
+    pub token_program: Program<'info, Token>,
+
+    pub system_program: Program<'info, System>
+}
+
+
+
+#[derive(Accounts)]
+pub struct RegisterVoter<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    //create treasury account first acocunt
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + Voter::INIT_SPACE,
+        seeds=[b"voter", authority.key.as_ref()],
+        bump
+    )]
+    pub voter_account: Account<'info, Voter>,
+
+    pub system_program: Program<'info, System>
+}

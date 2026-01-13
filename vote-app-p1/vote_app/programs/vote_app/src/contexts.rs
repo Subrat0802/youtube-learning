@@ -36,14 +36,14 @@ pub struct InitializeTreasury<'info> {
     )]
     pub treasury_token_account: Account<'info, TokenAccount>,
 
-    // #[account(
-    //     init,
-    //     payer = authority,
-    //     space = 8 + ProposalCounter::INIT_SPACE,
-    //     seeds=[b"proposal_counter"],
-    //     bump
-    // )]
-    // pub proposal_counter_account: Account<'info, ProposalCounter>,
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + ProposalCounter::INIT_SPACE,
+        seeds=[b"proposal_counter"],
+        bump
+    )]
+    pub proposal_counter_account: Account<'info, ProposalCounter>,
 
     /// CHECK: This is to recieve SOL tokens
     #[account(mut, seeds=[b"sol_vault"], bump)]
@@ -107,7 +107,7 @@ pub struct BuyTokens<'info> {
 pub struct RegisterVoter<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
-    //create treasury account first acocunt
+
     #[account(
         init,
         payer = authority,
@@ -118,4 +118,39 @@ pub struct RegisterVoter<'info> {
     pub voter_account: Account<'info, Voter>,
 
     pub system_program: Program<'info, System>
+}
+
+#[derive(Accounts)]
+pub struct RegisterProposal<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + Proposal::INIT_SPACE,
+        seeds = [b"proposal", proposal_counter_account.proposal_count.to_be_bytes().as_ref()],
+        bump       
+    )]
+    pub proposal_account: Account<'info, Proposal>,
+
+    #[account(mut)]
+    pub proposal_counter_account: Account<'info, ProposalCounter>,
+
+    pub x_mint: Account<'info, Mint>,
+
+    #[account(
+        mut,
+        constraint = proposal_token_account.mint == x_mint.key(),
+        constraint = proposal_token_account.owner == authority.key(),
+    )]
+    pub proposal_token_account: Account<'info, TokenAccount>,
+
+    #[account(mut, constraint = treasury_token_account.mint == x_mint.key())]
+    pub treasury_token_account: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+
+    pub system_program: Program<'info, System>
+
 }

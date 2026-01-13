@@ -10,8 +10,12 @@ const SEEDS = {
   SOL_VAULT: "sol_vault",
   X_MINT: "x_mint",
   MINT_AUTHORITY: "mint_authority",
-  VOTER: "voter"
+  VOTER: "voter",
+  PROPOSAL_COUNTER: "proposal_counter",
+  PROPOSAL: "proposal",
 }
+
+const PROPOSAL_ID = 1;
 
 const findPda = (programId: anchor.web3.PublicKey, seeds: (Buffer | Uint8Array)[]):anchor.web3.PublicKey => {
   const [pda, bump] = anchor.web3.PublicKey.findProgramAddressSync(seeds, programId);
@@ -21,6 +25,16 @@ const findPda = (programId: anchor.web3.PublicKey, seeds: (Buffer | Uint8Array)[
 const airDropSol = async (connection: anchor.web3.Connection, publicKey: anchor.web3.PublicKey, sol: number) => {
   const signature = await connection.requestAirdrop(publicKey, sol);
   await connection.confirmTransaction(signature, "confirmed");
+}
+
+const getBlockTIme = async (connection: anchor.web3.Connection):Promise<Number> => {
+  const slot = await connection.getSlot();
+  const blockTime = await connection.getBlockTime(slot);
+
+  if(blockTime === null) {
+    throw new Error("Failed to fetch the block time")
+  }
+  return blockTime;
 }
  
 describe("vote_app", () => {
@@ -38,6 +52,9 @@ describe("vote_app", () => {
 
   let proposalCreatorWallet = new anchor.web3.Keypair();
   let proposalCreatorTokenAccount: anchor.web3.PublicKey;
+
+  let proposalCounterPda: anchor.web3.PublicKey;
+  let proposalPda: anchor.web3.PublicKey;
 
 
 
@@ -58,6 +75,8 @@ describe("vote_app", () => {
     xMintPda = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.X_MINT)])
     mintAuthorityPda = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.MINT_AUTHORITY)])
     voterPda = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.VOTER), voterWallet.publicKey.toBuffer()])
+    proposalPda = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.PROPOSAL), Buffer.from([PROPOSAL_ID])])
+    proposalCounterPda = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.PROPOSAL_COUNTER)]);
     await airDropSol(connection, proposalCreatorWallet.publicKey, 10 * anchor.web3.LAMPORTS_PER_SOL);
     await airDropSol(connection, voterWallet.publicKey, 10 * anchor.web3.LAMPORTS_PER_SOL)
   })
@@ -94,8 +113,6 @@ describe("vote_app", () => {
 
       const tx = await program.methods.initializTreasury(solPrice, tokenPerPurchase).accountsPartial({
         authority: adminWallet.publicKey,
-        treasuryConfigAccount: treasuryConfigPda,
-        xMint: xMintPda,
       }).rpc();
       console.log(tx);
       const treasuryAccountData = await program.account.treasuryConfig.fetch(treasuryConfigPda); 
@@ -154,6 +171,31 @@ describe("vote_app", () => {
         console.log("voterAccount", voterWallet.publicKey.toBase58());
         console.log("voter pda", voterPda.toBase58());
         console.log("voterAccount", voterAccountData.proposalVoted);
+    })
+  })
+
+
+  describe("4. register proposal", () => {
+    it("Register voter", async () => {
+      const currentBlockTime = await getBlockTIme(connection);
+      const deadLine = new anchor.BN(Number(currentBlockTime) + 10);
+      const proposalInfo = "Build a layer 2 Solution";
+      const stakeAmount = new anchor.BN(1000);
+
+      await program.methods.registerProposal(proposalInfo, deadLine, stakeAmount).accountsPartial({
+        authority: proposalCreatorWallet.publicKey,    
+        proposalTokenAccount: proposalCreatorTokenAccount,
+        proposalCounterAccount: proposalCounterPda,
+        treasuryTokenAccount: treasuryTokenAccount,
+        xMint: xMintPda
+      }).signers([proposalCreatorWallet]).rpc();
+
+      const proposalAccountData = await program.account.proposal.fetch(proposalPda);
+      console.log(proposalAccountData);
+      const proposalCounterAccountData = await program.account.proposalCounter.fetch(proposalCounterPda);
+      expect(proposalCounterAccountData.proposalCount).to.equal(2);
+
+      expect(proposalAccountData.authority.toBase58()).to.equal(proposalCreatorWallet.publicKey.toBase58());
     })
   })
 

@@ -36,3 +36,14 @@ pub struct ProposalCounter {
     pub authority: Pubkey,
     pub proposal_count: u8
 }
+
+#[account]
+#[derive(InitSpace)]
+
+pub struct Winner {
+    pub winner_proposal_id: u8,
+    pub winner_votes: u8,
+    #[max_len(50)]
+    pub proposal_info: String,
+    pub declared_at: i64
+}

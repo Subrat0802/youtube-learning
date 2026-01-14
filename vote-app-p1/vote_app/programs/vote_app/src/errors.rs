@@ -10,5 +10,18 @@ pub enum VoteError {
     ProposalCounterAlreadyInitialized,
 
     #[msg("Proposal Count overflow")]
-    ProposalCounterOverflow
+    ProposalCounterOverflow,
+
+    #[msg("Proposal ended")]
+    ProposalEnded,
+
+    #[msg("Proposal vote overflow")]
+    ProposalVotesOverFlow,
+
+    #[msg("Voting still active")]
+    VotingStillActive,
+
+    #[msg("Zero votes")]
+    NoVotesCast
+
 }

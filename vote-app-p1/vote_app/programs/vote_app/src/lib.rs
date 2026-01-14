@@ -5,13 +5,14 @@ use contexts::*;
 use anchor_lang::system_program;
 mod errors;
 use errors::*;
-use anchor_spl::token::{mint_to, transfer as token_transfer, Transfer as TokenTransfer,};
+use anchor_spl::token::{mint_to, transfer as token_transfer, MintTo, Transfer as TokenTransfer,};
+mod events;
+use events::*;
 
 declare_id!("Ev95CEbNDVqaEdUHBYwBEN2S6VEGUhinvpfwpUacXQSH");
 
 #[program]
 pub mod vote_app {
-    use anchor_spl::token::MintTo;
 
     use super::*;
 
@@ -101,6 +102,73 @@ pub mod vote_app {
 
         proposal_counter_account.proposal_count = proposal_counter_account.proposal_count.checked_add(1).ok_or(VoteError::ProposalCounterOverflow)?;
 
+        Ok(())
+    }
+
+    pub fn proposal_to_vote(ctx:Context<Vote>, proposal_id: u8, token_amount:u64) -> Result<()> {
+        let proposal_account = &mut ctx.accounts.proposal_account;
+
+        let clock = Clock::get()?;
+        require!(proposal_account.deadline > clock.unix_timestamp, VoteError::ProposalEnded);
+
+        //transfer token from voter token account ot treasury token account
+        let cpi_context = TokenTransfer {
+            from: ctx.accounts.voter_token_account.to_account_info(),
+            to: ctx.accounts.treasury_token_account.to_account_info(),
+            authority: ctx.accounts.authority.to_account_info()
+        };
+
+        let cpi_ctx = CpiContext::new(
+            ctx.accounts.token_program.to_account_info(), 
+            cpi_context
+        );
+
+        token_transfer(cpi_ctx, token_amount)?;
+
+        let voter_account = &mut ctx.accounts.voter_account;
+        voter_account.proposal_voted = proposal_id;
+
+        proposal_account.number_of_votes = proposal_account.number_of_votes.checked_add(1).ok_or(VoteError::ProposalVotesOverFlow)?;
+
+        Ok(())  
+    }
+
+    pub fn pick_winner(ctx: Context<PickWinner>, proposal_id: u8) -> Result<()> {
+        let clock = Clock::get()?;
+        let proposal = &mut ctx.accounts.proposal_account;
+        let winner = &mut ctx.accounts.winner_account;
+
+        require!(clock.unix_timestamp >= proposal.deadline, VoteError::VotingStillActive);
+
+        require!(proposal.number_of_votes > 0, VoteError::NoVotesCast);
+
+        if proposal.number_of_votes > winner.winner_votes {
+            winner.winner_proposal_id = proposal_id;
+            winner.winner_votes = proposal.number_of_votes;
+            winner.proposal_info = proposal.proposal_info.clone();
+            winner.declared_at = clock.unix_timestamp;
+        }
+
+        Ok(())
+    }
+
+
+    pub fn close_proposal_account(ctx:Context<CloseProposal>, _proposal_id: u8) -> Result<()> {
+        let clock = Clock::get()?;
+        let proposal = &mut ctx.accounts.proposal_account;
+
+        require!(clock.unix_timestamp > proposal.deadline, VoteError::VotingStillActive);
+        //account will be closed by the close constarint
+        Ok(())
+    }
+
+
+    pub fn close_voter_account(ctx: Context<CloseVoter>) -> Result<()> {
+        emit!(VoterAccountClosed {
+                voter: ctx.accounts.voter_account.voter_id,
+                rent_recovered_to: ctx.accounts.authority.key(),
+                timestamp: Clock::get()?.unix_timestamp
+            });
         Ok(())
     }
 

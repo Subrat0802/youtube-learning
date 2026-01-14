@@ -13,7 +13,8 @@ const SEEDS = {
   VOTER: "voter",
   PROPOSAL_COUNTER: "proposal_counter",
   PROPOSAL: "proposal",
-}
+  WINNER: "winner"
+} as const;
 
 const PROPOSAL_ID = 1;
 
@@ -27,7 +28,7 @@ const airDropSol = async (connection: anchor.web3.Connection, publicKey: anchor.
   await connection.confirmTransaction(signature, "confirmed");
 }
 
-const getBlockTIme = async (connection: anchor.web3.Connection):Promise<Number> => {
+const getBlockTime = async (connection: anchor.web3.Connection):Promise<Number> => {
   const slot = await connection.getSlot();
   const blockTime = await connection.getBlockTime(slot);
 
@@ -36,6 +37,18 @@ const getBlockTIme = async (connection: anchor.web3.Connection):Promise<Number> 
   }
   return blockTime;
 }
+
+
+const expectedAnchorErrorCode = (err: unknown, expectedCode: string) => {
+  const anyErr = err as any;
+  const actualCode = 
+    anyErr?.error?.errorCode?.code ??
+    anyErr?.errorCode?.code ??
+    anyErr?.code;
+
+  expect(actualCode).to.equal(expectedCode)
+}
+
  
 describe("vote_app", () => {
   const provider = anchor.AnchorProvider.env();
@@ -63,6 +76,9 @@ describe("vote_app", () => {
   let voterPda: anchor.web3.PublicKey;
 
 
+  let winnerPda: anchor.web3.PublicKey;
+
+
 
   let treasuryConfigPda: anchor.web3.PublicKey;
   let xMintPda: anchor.web3.PublicKey;
@@ -77,6 +93,7 @@ describe("vote_app", () => {
     voterPda = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.VOTER), voterWallet.publicKey.toBuffer()])
     proposalPda = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.PROPOSAL), Buffer.from([PROPOSAL_ID])])
     proposalCounterPda = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.PROPOSAL_COUNTER)]);
+    winnerPda = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.WINNER)])
     await airDropSol(connection, proposalCreatorWallet.publicKey, 10 * anchor.web3.LAMPORTS_PER_SOL);
     await airDropSol(connection, voterWallet.publicKey, 10 * anchor.web3.LAMPORTS_PER_SOL)
   })
@@ -106,7 +123,7 @@ describe("vote_app", () => {
   }
 
   describe("1.Initialize treasury account", () => {
-    it("initialize treasury",async () => {
+    it("1.1 - initialize treasury",async () => {
       const solPrice = new anchor.BN(1000000000)
       const tokenPerPurchase = new anchor.BN(1000000000)
       console.log("Treasury config pda", treasuryConfigPda.toBase58());
@@ -126,7 +143,7 @@ describe("vote_app", () => {
   })
 
   describe("2. buy tokens for proposal and voter wallet", () => {
-    it("1. buy token for proposal", async () => {
+    it("2.1 - buy token for proposal", async () => {
       const tokenBalanceBefore = (await getAccount(connection, proposalCreatorTokenAccount)).amount;
 
       await program.methods.buyTokens().accounts({
@@ -142,7 +159,7 @@ describe("vote_app", () => {
       expect(tokenBalanceAfter - tokenBalanceBefore).to.equal(BigInt(1000000000));
     })
 
-    it("2. buy token for voter wallet", async () => {
+    it("2.2 - buy token for voter wallet", async () => {
       const tokenBalanceBefore = (await getAccount(connection, voterTokenAccount)).amount;
 
       await program.methods.buyTokens().accounts({
@@ -160,7 +177,7 @@ describe("vote_app", () => {
   })
 
   describe("3. register voters", () => {
-    it("Register voter", async () => {
+    it("3.1 - Register voter", async () => {
       await program.methods.registerVoter().accountsPartial({
         authority: voterWallet.publicKey,           
       }).signers([voterWallet]).rpc();
@@ -176,8 +193,8 @@ describe("vote_app", () => {
 
 
   describe("4. register proposal", () => {
-    it("Register voter", async () => {
-      const currentBlockTime = await getBlockTIme(connection);
+    it("4.1 - Register voter", async () => {
+      const currentBlockTime = await getBlockTime(connection);
       const deadLine = new anchor.BN(Number(currentBlockTime) + 10);
       const proposalInfo = "Build a layer 2 Solution";
       const stakeAmount = new anchor.BN(1000);
@@ -198,5 +215,86 @@ describe("vote_app", () => {
       expect(proposalAccountData.authority.toBase58()).to.equal(proposalCreatorWallet.publicKey.toBase58());
     })
   })
+
+  
+  
+
+  describe("5. Vote to proposal", () => {
+    it("5.1 - cast vote!", async () => {
+      const stakeAmountToVote = new anchor.BN(100);
+      const voterBalanceBefore = (await getAccount(connection, voterTokenAccount)).amount;
+      
+      await program.methods.proposalToVote(PROPOSAL_ID, stakeAmountToVote).accountsPartial({
+        authority: voterWallet.publicKey,
+        voterTokenAccount: voterTokenAccount,
+        treasuryTokenAccount: treasuryTokenAccount,
+        xMint: xMintPda
+      }).signers([voterWallet]).rpc();
+      const voterBalanceAfter = (await getAccount(connection, voterTokenAccount)).amount;
+      console.log("voterAfterBefore", voterBalanceBefore)
+      console.log("voterAfterBefore", voterBalanceAfter)
+    })
+  })
+
+  describe("6. Pick Winner", () => {
+    it("6.1 - 6.1 should FAIL to pick winner before deadline passes!", async () => {
+      try{
+        await program.methods.pickWinner(PROPOSAL_ID).accounts({
+          authority: adminWallet.publicKey
+        }).rpc();
+      }catch(error){
+        expectedAnchorErrorCode(error, "VotingStillActive")
+      }
+    })
+
+    it("6.2 - should pick winner after deadline passes!", async () => {
+      console.log("------------waiting for voting deadline-----------------");
+      await new Promise((reslove) => setTimeout(reslove, 12000));
+      await program.methods.pickWinner(PROPOSAL_ID).accounts({
+        authority: adminWallet.publicKey
+      }).rpc();
+      const winnerPdaData = await program.account.winner.fetch(winnerPda);
+      console.log("WINER< PDA DATA:", winnerPdaData);
+      expect(winnerPdaData.winnerProposalId).to.equal(PROPOSAL_ID);
+      expect(winnerPdaData.winnerVotes).to.equal(1);
+
+    })
+  })
+
+
+  describe("7. Close proposal account!", async () => {
+    it("7.1 - closing propsal account after propsal is not live", async () => {
+      await program.methods.closeProposalAccount(PROPOSAL_ID).accounts({
+        authority: proposalCreatorWallet.publicKey,
+        destination: proposalCreatorWallet.publicKey
+      }).signers([proposalCreatorWallet]).rpc()
+    })
+  })
+
+
+  describe("8. Close voter account", () => {
+      it("8.1 should close voter and revocer rent!", async () => {
+        const accountInfoBefore = await connection.getAccountInfo(voterPda);
+        expect(accountInfoBefore).to.not.be.null;
+
+        const voterBalancebefore = await connection.getBalance(voterWallet.publicKey);
+        console.log("Voter balance before", voterBalancebefore)
+
+          await program.methods.closeVoterAccount().accounts({
+            authority: voterWallet.publicKey
+          }).signers([voterWallet]).rpc();
+
+          const accountInfoAfter = await connection.getAccountInfo(voterPda);
+          expect(accountInfoAfter).to.be.null
+
+
+        const voterBalanceAfter = await connection.getBalance(voterWallet.publicKey);
+        console.log("Voter balance after", voterBalanceAfter)
+        if(voterBalancebefore<voterBalanceAfter){
+          console.log("Amount trnsfered successfully")
+        }
+      })
+    })
+
 
 });

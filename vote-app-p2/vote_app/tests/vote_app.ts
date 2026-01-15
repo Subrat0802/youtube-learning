@@ -6,7 +6,9 @@ import { expect } from "chai";
 
 
 const SEEDS = {
-  POLL:"poll"
+  POLL:"poll",
+  NAMEC:"Crunchy",
+  NAMES:"Smooth"
 } as const;
 
 const findPda = (programId: anchor.web3.PublicKey, seeds: (Buffer | Uint8Array)[]):anchor.web3.PublicKey => {
@@ -23,11 +25,16 @@ describe("vote_app", () => {
   const program = anchor.workspace.voteApp as Program<VoteApp>;
   const adminWallet = (provider.wallet as NodeWallet).payer;
 
+  
 
   let pollPda: anchor.web3.PublicKey;
+  let candidatePdaC: anchor.web3.PublicKey;
+  let candidatePdaS: anchor.web3.PublicKey;
 
   beforeEach( async () => {
     pollPda = findPda(program.programId, [Buffer.from([POLLID])]) //new anchor.BN(1).toArrayLike(Buffer, 'le', 8)]
+    candidatePdaC = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.NAMEC), Buffer.from([POLLID])])
+    candidatePdaS = findPda(program.programId, [anchor.utils.bytes.utf8.encode(SEEDS.NAMES), Buffer.from([POLLID])])
   })
 
 
@@ -54,10 +61,41 @@ describe("vote_app", () => {
   });
 
   it("is adding candidates", async () => {
-    const candidateName = "Crunchy";
+    const candidateNameC = SEEDS.NAMEC;
+    const candidateNameS = SEEDS.NAMES;
     const pollId = POLLID;
-    await program.methods.initializeCandidate(candidateName, pollId).accountsPartial({
+    await program.methods.initializeCandidate(candidateNameC, pollId).accountsPartial({
       signer: adminWallet.publicKey
     }).signers([adminWallet]).rpc()
+
+    await program.methods.initializeCandidate(candidateNameS, pollId).accountsPartial({
+      signer: adminWallet.publicKey
+    }).signers([adminWallet]).rpc()
+
+    const candidateAccountCData = await program.account.candidate.fetch(candidatePdaC);
+    console.log(candidateAccountCData);
+
+    const candidateAccountSData = await program.account.candidate.fetch(candidatePdaS);
+    console.log(candidateAccountSData);
+
+    const pollAccountData = await program.account.poll.fetch(pollPda);
+    console.log(pollAccountData.candidateAmount.toNumber());
+    expect(pollAccountData.candidateAmount.toNumber()).to.equal(2);
+  })
+
+
+  it("is vote", async () => {
+    const candidateNameC = SEEDS.NAMEC;
+    const pollId = POLLID;
+    const candidateVoteDetailsBefore = await program.account.candidate.fetch(candidatePdaC);
+    console.log(candidateVoteDetailsBefore.candidateVotes.toNumber());
+
+    await program.methods.vote(candidateNameC, pollId).accounts({
+      signer: adminWallet.publicKey,
+    }).rpc();
+
+    const candidateVoteDetailsAfter = await program.account.candidate.fetch(candidatePdaC);
+    console.log(candidateVoteDetailsAfter.candidateVotes.toNumber());
+
   })
 });

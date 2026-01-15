@@ -1,0 +1,9 @@
+[90m[[0m2026-01-15T20:44:04.363047000Z [32mINFO [0m solana_test_validator[90m][0m agave-validator 3.0.13 (src:90098d26; feat:3604001754, client:Agave)
+[90m[[0m2026-01-15T20:44:04.363094000Z [32mINFO [0m solana_test_validator[90m][0m Starting validator with: ArgsOs {
+        inner: [
+            "solana-test-validator",
+        ],
+    }
+[90m[[0m2026-01-15T20:44:04.363106000Z [33mWARN [0m solana_perf[90m][0m CUDA is disabled
+[90m[[0m2026-01-15T20:44:04.368616000Z [1m[31mERROR[0m solana_faucet::faucet[90m][0m Faucet failed to start: Address already in use (os error 48)
+[90m[[0m2026-01-15T20:44:04.368711000Z [32mINFO [0m solana_metrics::metrics[90m][0m metrics disabled: environment variable not found

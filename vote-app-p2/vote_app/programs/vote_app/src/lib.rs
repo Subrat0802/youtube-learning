@@ -28,7 +28,20 @@ pub mod vote_app {
         candidate_account.candidate_votes = 0;
         Ok(())
     }
+
+    pub fn vote(ctx: Context<Vote>, _candidate_name: String, _poll_id: u8) -> Result<()> {
+
+        let candidate_account = &mut ctx.accounts.candidate_account;
+        let poll_account = &mut ctx.accounts.poll;
+
+        let clock = Clock::get()?;
+        require!(clock.unix_timestamp < poll_account.poll_end, VoteError::Timeout);
+
+        candidate_account.candidate_votes += 1;
+        Ok(())
+    }
 }
+
 
 #[derive(Accounts)]
 #[instruction(poll_id: u8)]
@@ -75,6 +88,7 @@ pub struct InitializeCandidate<'info> {
     pub candidate_account: Account<'info, Candidate>,
 
     #[account(
+        mut,
         seeds = [poll_id.to_be_bytes().as_ref()],
         bump
     )]
@@ -91,4 +105,28 @@ pub struct Candidate {
     pub candidate_name: String,
     pub candidate_poll_id: u8,
     pub candidate_votes: u64,
+}
+
+
+#[derive(Accounts)]
+#[instruction(candidate_name: String, poll_id: u8)]
+pub struct Vote<'info> {
+    #[account(
+        mut, 
+        seeds = [candidate_name.as_bytes(), poll_id.to_be_bytes().as_ref()],
+        bump
+    )]
+    pub candidate_account: Account<'info, Candidate>,
+
+    #[account(
+        seeds = [poll_id.to_be_bytes().as_ref()],
+        bump
+    )]
+    pub poll: Account<'info, Poll>,
+}
+
+#[error_code]
+pub enum VoteError {
+    #[msg("Time out")]
+    Timeout
 }
